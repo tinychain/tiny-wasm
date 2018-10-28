@@ -10,8 +10,8 @@ tiny-wasm
 **NOTE:** `wagon` requires `Go >= 1.9.x`.
 
 ## Purpose
-
-`wagon` aims to provide tools (executables+libraries) to:
+WIP. 
+Thie project is forked from `wagon`.`wagon` aims to provide tools (executables+libraries) to:
 
 - decode `wasm` binary files
 - load and execute `wasm` modules' bytecode.
