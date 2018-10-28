@@ -12,8 +12,8 @@ import (
 	"io/ioutil"
 	"sort"
 
-	"github.com/go-interpreter/wagon/wasm/internal/readpos"
-	"github.com/go-interpreter/wagon/wasm/leb128"
+	"github.com/tinychain/tiny-wasm/wasm/internal/readpos"
+	"github.com/tinychain/tiny-wasm/wasm/leb128"
 )
 
 // Section is a generic WASM section interface.
