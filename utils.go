@@ -1,4 +1,4 @@
-package wagon
+package tiny_wasm
 
 import (
 	"github.com/tinychain/tiny-wasm/wagon/wasm"

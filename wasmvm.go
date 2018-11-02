@@ -1,8 +1,7 @@
-package wagon
+package tiny_wasm
 
 import (
 	"github.com/tinychain/tiny-wasm/wagon/exec"
-	"github.com/tinychain/tiny-wasm/wagon/wasm"
 )
 
 type WasmVM struct {
@@ -21,6 +20,10 @@ func New(context EnvContext) *WasmVM {
 	return w
 }
 
+func (w *WasmVM) init(){
+	w.register()
+}
+
 func (w *WasmVM) register(name string, handler interface{}) {
 	w.handlers[name] = handler
 }
@@ -31,10 +34,4 @@ func (w *WasmVM) GetHandlers() map[string]interface{} {
 
 func (w *WasmVM) GetHandler(name string) interface{} {
 	return w.handlers[name]
-}
-
-func (w *WasmVM) importer(name string) (*wasm.Module, error) {
-	if name == "env" {
-
-	}
 }
