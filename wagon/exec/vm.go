@@ -59,6 +59,7 @@ type VM struct {
 	globals []uint64
 	memory  []byte
 	funcs   []function
+	wasmi   interface{}
 
 	funcTable [256]func()
 

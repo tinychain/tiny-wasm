@@ -30,9 +30,56 @@ type goFunction struct {
 	typ reflect.Type
 }
 
+//func (fn goFunction) call(vm *VM, index int64) {
+//	// numIn = # of call inputs + vm, as the function expects
+//	// an additional *VM argument
+//	numIn := fn.typ.NumIn()
+//	args := make([]reflect.Value, numIn)
+//	proc := NewProcess(vm)
+//
+//	// Pass proc as an argument. Check that the function indeed
+//	// expects a *Process argument.
+//	if reflect.ValueOf(proc).Kind() != fn.typ.In(0).Kind() {
+//		panic(fmt.Sprintf("exec: the first argument of a host function was %s, expected %s", fn.typ.In(0).Kind(), reflect.ValueOf(vm).Kind()))
+//	}
+//	args[0] = reflect.ValueOf(proc)
+//
+//	for i := numIn - 1; i >= 1; i-- {
+//		val := reflect.New(fn.typ.In(i)).Elem()
+//		raw := vm.popUint64()
+//		kind := fn.typ.In(i).Kind()
+//
+//		switch kind {
+//		case reflect.Float64, reflect.Float32:
+//			val.SetFloat(math.Float64frombits(raw))
+//		case reflect.Uint32, reflect.Uint64:
+//			val.SetUint(raw)
+//		case reflect.Int32, reflect.Int64:
+//			val.SetInt(int64(raw))
+//		default:
+//			panic(fmt.Sprintf("exec: args %d invalid kind=%v", i, kind))
+//		}
+//
+//		args[i] = val
+//	}
+//
+//	rtrns := fn.val.Call(args)
+//	for i, out := range rtrns {
+//		kind := out.Kind()
+//		switch kind {
+//		case reflect.Float64, reflect.Float32:
+//			vm.pushFloat64(out.Float())
+//		case reflect.Uint32, reflect.Uint64:
+//			vm.pushUint64(out.Uint())
+//		case reflect.Int32, reflect.Int64:
+//			vm.pushInt64(out.Int())
+//		default:
+//			panic(fmt.Sprintf("exec: return value %d invalid kind=%v", i, kind))
+//		}
+//	}
+//}
+
 func (fn goFunction) call(vm *VM, index int64) {
-	// numIn = # of call inputs + vm, as the function expects
-	// an additional *VM argument
 	numIn := fn.typ.NumIn()
 	args := make([]reflect.Value, numIn)
 	proc := NewProcess(vm)
@@ -40,26 +87,37 @@ func (fn goFunction) call(vm *VM, index int64) {
 	// Pass proc as an argument. Check that the function indeed
 	// expects a *Process argument.
 	if reflect.ValueOf(proc).Kind() != fn.typ.In(0).Kind() {
-		panic(fmt.Sprintf("exec: the first argument of a host function was %s, expected %s", fn.typ.In(0).Kind(), reflect.ValueOf(vm).Kind()))
+		panic(fmt.Sprintf("exec: the first argument of a host function was %s, expected %s", fn.typ.In(0).Kind(), reflect.ValueOf(proc).Kind()))
 	}
-	args[0] = reflect.ValueOf(proc)
 
-	for i := numIn - 1; i >= 1; i-- {
+	// Pass vm.wasmi as second argument. Check that the function indeed
+	// expects a *WasmIntptr argument.
+	if reflect.ValueOf(vm.wasmi).Kind() != fn.typ.In(1).Kind() {
+		panic(fmt.Sprintf("exec: the second argument of a host function was %s, expected %s", fn.typ.In(1).Kind(), reflect.ValueOf(vm.wasmi).Kind()))
+	}
+
+	//the first param is WasmIntptr
+	args[0] = reflect.ValueOf(proc)
+	args[1] = reflect.ValueOf(vm.wasmi)
+
+	for i := numIn - 1; i >= 2; i-- {
 		val := reflect.New(fn.typ.In(i)).Elem()
 		raw := vm.popUint64()
 		kind := fn.typ.In(i).Kind()
 
 		switch kind {
-		case reflect.Float64, reflect.Float32:
+		case reflect.Float64:
 			val.SetFloat(math.Float64frombits(raw))
+		case reflect.Float32:
+			val.SetFloat(float64(math.Float32frombits(uint32(raw))))
 		case reflect.Uint32, reflect.Uint64:
 			val.SetUint(raw)
-		case reflect.Int32, reflect.Int64:
+		case reflect.Int32, reflect.Int64, reflect.Int:
 			val.SetInt(int64(raw))
 		default:
 			panic(fmt.Sprintf("exec: args %d invalid kind=%v", i, kind))
+			//val = reflect.ValueOf(raw)
 		}
-
 		args[i] = val
 	}
 
@@ -71,7 +129,7 @@ func (fn goFunction) call(vm *VM, index int64) {
 			vm.pushFloat64(out.Float())
 		case reflect.Uint32, reflect.Uint64:
 			vm.pushUint64(out.Uint())
-		case reflect.Int32, reflect.Int64:
+		case reflect.Int32, reflect.Int64, reflect.Int:
 			vm.pushInt64(out.Int())
 		default:
 			panic(fmt.Sprintf("exec: return value %d invalid kind=%v", i, kind))
