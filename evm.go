@@ -157,7 +157,7 @@ func (evm *EVM) Call(caller vm.ContractRef, addr common.Address, input []byte, g
 	}
 
 	// Fail if we're trying to execute above the call depth limit
-	if evm.depth > int(CallCreateDepth) {
+	if evm.depth > int(maxCallDepth) {
 		return nil, gas, vm.ErrDepth
 	}
 	// Fail if we're trying to transfer more than the available balance

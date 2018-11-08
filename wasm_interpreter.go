@@ -4,23 +4,25 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/tinychain/tinychain/core/vm"
+	"reflect"
+
 	"github.com/tinychain/tiny-wasm/wagon/exec"
 	"github.com/tinychain/tiny-wasm/wagon/wasm"
-	"reflect"
 )
 
 type WasmIntptr struct {
-	readonly bool
-	evm      *EVM
-	handlers map[string]interface{} // eei function handlers
-
-	// module resolver components
-	entries []wasm.FunctionSig
-	funcs   []wasm.Function
-	exports map[string]wasm.ExportEntry
-
+	// execution fields
 	vm       *exec.VM
 	contract *Contract
+	readonly bool
+	evm      *EVM
+
+	// module resolver components
+	handlers map[string]interface{} // eei function handlers
+	entries  []wasm.FunctionSig
+	funcs    []wasm.Function
+	exports  map[string]wasm.ExportEntry
 }
 
 func NewWasmIntptr(evm *EVM) *WasmIntptr {
@@ -106,6 +108,14 @@ func (w *WasmIntptr) useGas(amount uint64) {
 	}
 
 	w.contract.Gas -= amount
+}
+
+func (w *WasmIntptr) StateDB() vm.StateDB {
+	return w.evm.StateDB
+}
+
+func (w *WasmIntptr) BlockHeight() uint64 {
+
 }
 
 func (w *WasmIntptr) Run(contract *Contract, input []byte) ([]byte, error) {
