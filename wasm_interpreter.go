@@ -11,12 +11,23 @@ import (
 	"github.com/tinychain/tiny-wasm/wagon/wasm"
 )
 
+type TerminateType int
+
+const (
+	TerminateFinish = iota
+	TerminateRevert
+	TerminateSuicide
+	TerminateInvalid
+)
+
 type WasmIntptr struct {
 	// execution fields
-	vm       *exec.VM
-	contract *Contract
-	readonly bool
-	evm      *EVM
+	vm            *exec.VM
+	contract      *Contract
+	readonly      bool          // static mode
+	evm           *EVM          // evm instance
+	terminateType TerminateType // termination type of the execution
+	returnData    []byte        // returning output data for the execution
 
 	// module resolver components
 	handlers map[string]interface{} // eei function handlers
