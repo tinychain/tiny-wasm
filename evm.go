@@ -56,6 +56,23 @@ func run(evm *EVM, contract *Contract, input []byte) ([]byte, error) {
 	return nil, vm.ErrNoCompatibleInterpreter
 }
 
+// Config are the configuration options for the Interpreter
+type Config struct {
+	// Debug enabled debugging Interpreter options
+	Debug bool
+	// Tracer is the op code logger
+	Tracer Tracer
+	// NoRecursion disabled Interpreter call, callcode,
+	// delegate call and create.
+	NoRecursion bool
+	// Enable recording of SHA3/keccak preimages
+	EnablePreimageRecording bool
+	// Type of the EWASM interpreter
+	EWASMInterpreter string
+	// Type of the EVM interpreter
+	EVMInterpreter string
+}
+
 // Interpreter is used to run Ethereum based contracts and will utilise the
 // passed environment to query external sources for state information.
 // The Interpreter will run the byte code VM based on the passed
@@ -225,7 +242,7 @@ func (evm *EVM) CallCode(caller vm.ContractRef, addr common.Address, input []byt
 	}
 
 	// Fail if we're trying to execute above the call depth limit
-	if evm.depth > int(CallCreateDepth) {
+	if evm.depth > int(maxCallDepth) {
 		return nil, gas, vm.ErrDepth
 	}
 	// Fail if we're trying to transfer more than the available balance

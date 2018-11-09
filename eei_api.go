@@ -86,7 +86,7 @@ func (*eeiApi) getBlockHash(p *exec.Process, w *WasmIntptr, number int64, result
 func (*eeiApi) call(p *exec.Process, w *WasmIntptr, gas int64, addressOffset, valueOffset, dataOffset, dataLength int32) int32 {
 	w.useGas(GasCostCall)
 
-	addr, value, input := getCallParams(p, addressOffset, valueOffset, dataOffset, dataLength)
+	addr, value, input := getCallParams(p, w, addressOffset, valueOffset, dataOffset, dataLength)
 
 	if !w.evm.Context.CanTransfer(w.StateDB(), addr, value) {
 		fmt.Printf("balance not enough: want to use %v, got %v\n", value, w.StateDB().GetBalance(addr))
@@ -104,7 +104,7 @@ func (*eeiApi) call(p *exec.Process, w *WasmIntptr, gas int64, addressOffset, va
 	toContract := NewContract(w.contract.caller, AccountRef(addr), value, uint64(gas))
 	toContract.SetCallCode(&addr, w.StateDB().GetCodeHash(addr), w.StateDB().GetCode(addr))
 
-	return call(w, toContract, input, value, snapshot, gas)
+	return call(w, toContract, input, snapshot)
 }
 
 func (*eeiApi) callDataCopy(p *exec.Process, w *WasmIntptr, resultOffset, dataOffset, length int32) {
@@ -118,15 +118,44 @@ func (*eeiApi) getCallDataSize(p *exec.Process, w *WasmIntptr) int32 {
 }
 
 func (*eeiApi) callCode(p *exec.Process, w *WasmIntptr, gas int64, addressOffset, valueOffset, dataOffset, dataLength int32) int32 {
+	w.useGas(GasCostCall)
+	addr, value, input := getCallParams(p, w, addressOffset, valueOffset, dataOffset, dataLength)
 
+	if !w.evm.Context.CanTransfer(w.StateDB(), addr, value) {
+		fmt.Printf("balance not enough: want to use %v, got %v\n", value, w.StateDB().GetBalance(addr))
+	}
+
+	snapshot := w.StateDB().Snapshot()
+	toContract := NewContract(w.contract.caller, w.contract.caller, value, uint64(gas))
+	toContract.SetCallCode(&addr, w.StateDB().GetCodeHash(addr), w.StateDB().GetCode(addr))
+
+	return call(w, toContract, input, snapshot)
 }
 
 func (*eeiApi) callDelegate(p *exec.Process, w *WasmIntptr, gas int64, addressOffset, dataOffset, dataLength int32) int32 {
+	w.useGas(GasCostCall)
+	addr, _, input := getCallParams(p, w, addressOffset, -1, dataOffset, dataLength)
 
+	snapshot := w.StateDB().Snapshot()
+	toContract := NewContract(w.contract.caller, w.contract.caller, nil, uint64(gas)).AsDelegate()
+	toContract.SetCallCode(&addr, w.StateDB().GetCodeHash(addr), w.StateDB().GetCode(addr))
+
+	return call(w, toContract, input, snapshot)
 }
 
 func (*eeiApi) callStatic(p *exec.Process, w *WasmIntptr, gas int64, addressOffset, dataOffset, dataLength int32) int32 {
+	w.useGas(GasCostCall)
+	addr, _, input := getCallParams(p, w, addressOffset, -1, dataOffset, dataLength)
 
+	if !w.IsReadOnly() {
+		w.SetReadOnly(true)
+		defer func() { w.SetReadOnly(false) }()
+	}
+
+	toContract := NewContract(w.contract.caller, AccountRef(addr), new(big.Int), uint64(gas))
+	toContract.SetCallCode(&addr, w.StateDB().GetCodeHash(addr), w.StateDB().GetCode(addr))
+
+	return call(w, toContract, input, w.StateDB().Snapshot())
 }
 
 func (*eeiApi) storageStore(p *exec.Process, w *WasmIntptr, pathOffset, valueOffset int32) {
@@ -198,19 +227,25 @@ func (*eeiApi) getTxOrigin(p *exec.Process, w *WasmIntptr, resultOffset int32) {
 }
 
 func (*eeiApi) finish(p *exec.Process, w *WasmIntptr, dataOffset, length int32) {
-
+	w.returnData = loadFromMem(p, dataOffset, int(length))
+	w.terminateType = TerminateFinish
+	p.Terminate()
 }
 
 func (*eeiApi) revert(p *exec.Process, w *WasmIntptr, dataOffset, length int32) {
-
+	w.returnData = loadFromMem(p, dataOffset, int(length))
+	w.terminateType = TerminateRevert
+	p.Terminate()
 }
 
 func (*eeiApi) getReturnDataSize(p *exec.Process, w *WasmIntptr) int32 {
-
+	w.useGas(GasCostBase)
+	return int32(len(w.returnData))
 }
 
 func (*eeiApi) returnDataCopy(p *exec.Process, w *WasmIntptr, resultOffset, dataOffset, length int32) {
-
+	w.useGas(GasCostCopy * uint64(length))
+	p.WriteAt(loadFromMem(p, dataOffset, int(length)), int64(resultOffset))
 }
 
 func (*eeiApi) selfDestruct(p *exec.Process, w *WasmIntptr, addressOffset int32) {
@@ -232,7 +267,11 @@ func getCallParams(p *exec.Process, w *WasmIntptr, addressOffset, valueOffset, d
 	addr = common.BytesToAddress(loadFromMem(p, addressOffset, common.AddressLength))
 
 	// Get the value from mem
-	value = big.NewInt(0).SetBytes(loadFromMem(p, valueOffset, u128Len))
+	if valueOffset == -1 {
+		value = w.contract.value
+	} else {
+		value = big.NewInt(0).SetBytes(loadFromMem(p, valueOffset, u128Len))
+	}
 	if value.Cmp(big.NewInt(0)) != 0 {
 		w.useGas(GasCostCallValue)
 	}
@@ -264,6 +303,16 @@ func call(w *WasmIntptr, toContract *Contract, input []byte, snapshot int) int32
 		return ErrEEICallFailure
 	}
 
-	// TODO: termination type
-	return EEICallSuccess
+	// Check terminateType from execution
+	switch w.terminateType {
+	case TerminateFinish:
+		return EEICallSuccess
+	case TerminateRevert:
+		w.StateDB().RevertToSnapshot(snapshot)
+		return ErrEEICallRevert
+	default:
+		w.StateDB().RevertToSnapshot(snapshot)
+		w.useGas(w.contract.Gas)
+		return ErrEEICallFailure
+	}
 }
