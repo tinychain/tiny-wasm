@@ -311,7 +311,7 @@ func (evm *EVM) StaticCall(caller vm.ContractRef, addr common.Address, input []b
 	if evm.vmConfig.NoRecursion && evm.depth > 0 {
 		return nil, gas, nil
 	}
-	// Fail if we're trying to execute above the call depth limit
+	// Fail if we'r  e trying to execute above the call depth limit
 	if evm.depth > int(CallCreateDepth) {
 		return nil, gas, vm.ErrDepth
 	}
