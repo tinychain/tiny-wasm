@@ -1,4 +1,4 @@
-package tiny_wasm
+package tinywasm
 
 import (
 	"bytes"

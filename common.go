@@ -1,4 +1,4 @@
-package tiny_wasm
+package tinywasm
 
 // Size (in bytes) of a u256
 const u256Len = 32
