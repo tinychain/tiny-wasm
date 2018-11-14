@@ -43,6 +43,7 @@ const (
 	GasCostLogTopic       = 375
 	GasCostCopy           = 3
 	GasCostBlockHash      = 800
+	GasCostCreateData     = 200
 
 	GasCostExtcodeSize = 700
 	GasCostExtcodeCopy = 700
