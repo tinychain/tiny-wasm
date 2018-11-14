@@ -62,14 +62,14 @@ func (*eeiApi) useGas(p *exec.Process, w *WasmIntptr, amount int64) {
 
 func (*eeiApi) getAddress(p *exec.Process, w *WasmIntptr, resultOffset int32) {
 	w.useGas(GasCostBase)
-	p.WriteAt(w.contract.Address().Bytes(), int64(resultOffset))
+	writeToMem(p, w.contract.Address().Bytes(), resultOffset)
 }
 
 func (*eeiApi) getExternalBalance(p *exec.Process, w *WasmIntptr, addressOffset, resultOffset int32) {
 	w.useGas(GasCostBalance)
 	addr := loadFromMem(p, addressOffset, common.AddressLength)
 	balance := w.evm.StateDB.GetBalance(common.BytesToAddress(addr))
-	p.WriteAt(balance.Bytes(), int64(resultOffset))
+	writeToMem(p, balance.Bytes(), resultOffset)
 }
 
 // getBlockHash gets the hash of one of the 256 most recent completed blocks.
@@ -80,7 +80,7 @@ func (*eeiApi) getBlockHash(p *exec.Process, w *WasmIntptr, number int64, result
 		return ErrEEICallFailure
 	}
 	hash := w.evm.Context.GetHash(uint64(number))
-	p.WriteAt(hash.Bytes(), int64(resultOffset))
+	writeToMem(p, hash.Bytes(), resultOffset)
 	return EEICallSuccess
 
 }
@@ -111,7 +111,7 @@ func (*eeiApi) call(p *exec.Process, w *WasmIntptr, gas int64, addressOffset, va
 
 func (*eeiApi) callDataCopy(p *exec.Process, w *WasmIntptr, resultOffset, dataOffset, length int32) {
 	w.useGas(GasCostVeryLow + GasCostCopy*uint64(length))
-	p.WriteAt(w.contract.Input[dataOffset:dataOffset+length], int64(resultOffset))
+	writeToMem(p, w.contract.Input[dataOffset:dataOffset+length], resultOffset)
 }
 
 func (*eeiApi) getCallDataSize(p *exec.Process, w *WasmIntptr) int32 {
@@ -191,23 +191,23 @@ func (*eeiApi) storageLoad(p *exec.Process, w *WasmIntptr, pathOffset, resultOff
 	w.useGas(GasCostSLoad)
 	key := common.BytesToHash(loadFromMem(p, pathOffset, u256Len))
 	val := w.StateDB().GetState(w.contract.Address(), key)
-	p.WriteAt(val, int64(resultOffset))
+	writeToMem(p, val, resultOffset)
 }
 
 func (*eeiApi) getCaller(p *exec.Process, w *WasmIntptr, resultOffset int32) {
 	w.useGas(GasCostBase)
 	addr := w.contract.CallerAddress
-	p.WriteAt(addr.Bytes(), int64(resultOffset))
+	writeToMem(p, addr.Bytes(), resultOffset)
 }
 
 func (*eeiApi) getCallValue(p *exec.Process, w *WasmIntptr, resultOffset int32) {
 	w.useGas(GasCostBase)
-	p.WriteAt(w.contract.Value().Bytes(), int64(resultOffset))
+	writeToMem(p, w.contract.Value().Bytes(), resultOffset)
 }
 
 func (*eeiApi) codeCopy(p *exec.Process, w *WasmIntptr, resultOffset, codeOffset, length int32) {
 	w.useGas(GasCostVeryLow + GasCostCopy*uint64(length))
-	p.WriteAt(w.contract.Code[codeOffset:codeOffset+length], int64(resultOffset))
+	writeToMem(p, w.contract.Code[codeOffset:codeOffset+length], resultOffset)
 }
 
 func (*eeiApi) getCodeSize(p *exec.Process, w *WasmIntptr) int32 {
@@ -217,7 +217,7 @@ func (*eeiApi) getCodeSize(p *exec.Process, w *WasmIntptr) int32 {
 
 func (*eeiApi) getBlockCoinbase(p *exec.Process, w *WasmIntptr, resultOffset int32) {
 	w.useGas(GasCostBase)
-	p.WriteAt(w.evm.Coinbase().Bytes(), int64(resultOffset))
+	writeToMem(p, w.evm.Coinbase().Bytes(), resultOffset)
 }
 
 func (*eeiApi) create(p *exec.Process, w *WasmIntptr, valueOffset, dataOffset, length, resultOffset int32) int32 {
@@ -240,7 +240,7 @@ func (*eeiApi) create(p *exec.Process, w *WasmIntptr, valueOffset, dataOffset, l
 		return ErrEEICallFailure
 	}
 
-	code := loadFromMem(p, dataOffset, int(length))
+	code := loadFromMem(p, dataOffset, length)
 	val := loadFromMem(p, valueOffset, u128Len)
 
 	w.terminateType = TerminateFinish
@@ -273,7 +273,7 @@ func (*eeiApi) externalCodeCopy(p *exec.Process, w *WasmIntptr, addressOffset, r
 	code := w.StateDB().GetCode(addr)
 
 	w.useGas(GasCostVeryLow + GasCostCopy*uint64(len(code)))
-	p.WriteAt(code[codeOffset:codeOffset+length], int64(resultOffset))
+	writeToMem(p, code[codeOffset:codeOffset+length], resultOffset)
 }
 
 func (*eeiApi) getExternalCodeSize(p *exec.Process, w *WasmIntptr, addressOffset int32) int32 {
@@ -294,7 +294,7 @@ func (*eeiApi) getBlockGasLimit(p *exec.Process, w *WasmIntptr) int64 {
 
 func (*eeiApi) getTxGasPrice(p *exec.Process, w *WasmIntptr, valueOffset int32) {
 	w.useGas(GasCostBase)
-	p.WriteAt(w.evm.GasPrice.Bytes(), int64(valueOffset))
+	writeToMem(p, w.evm.GasPrice.Bytes(), valueOffset)
 }
 
 func (*eeiApi) log(p *exec.Process, w *WasmIntptr, dataOffset, dataLength, numberOfTopics, topic1, topic2, topic3, topic4 int32) {
@@ -305,7 +305,7 @@ func (*eeiApi) log(p *exec.Process, w *WasmIntptr, dataOffset, dataLength, numbe
 		p.Terminate()
 	}
 
-	data := loadFromMem(p, dataOffset, int(dataLength))
+	data := loadFromMem(p, dataOffset, dataLength)
 	topics := make([]common.Hash, numberOfTopics)
 
 	switch numberOfTopics {
@@ -339,17 +339,17 @@ func (*eeiApi) getBlockNumber(p *exec.Process, w *WasmIntptr) int64 {
 
 func (*eeiApi) getTxOrigin(p *exec.Process, w *WasmIntptr, resultOffset int32) {
 	w.useGas(GasCostBase)
-	p.WriteAt(w.evm.Origin.Bytes(), int64(resultOffset))
+	writeToMem(p, w.evm.Origin.Bytes(), resultOffset)
 }
 
 func (*eeiApi) finish(p *exec.Process, w *WasmIntptr, dataOffset, length int32) {
-	w.returnData = loadFromMem(p, dataOffset, int(length))
+	w.returnData = loadFromMem(p, dataOffset, length)
 	w.terminateType = TerminateFinish
 	p.Terminate()
 }
 
 func (*eeiApi) revert(p *exec.Process, w *WasmIntptr, dataOffset, length int32) {
-	w.returnData = loadFromMem(p, dataOffset, int(length))
+	w.returnData = loadFromMem(p, dataOffset, length)
 	w.terminateType = TerminateRevert
 	p.Terminate()
 }
@@ -361,7 +361,7 @@ func (*eeiApi) getReturnDataSize(p *exec.Process, w *WasmIntptr) int32 {
 
 func (*eeiApi) returnDataCopy(p *exec.Process, w *WasmIntptr, resultOffset, dataOffset, length int32) {
 	w.useGas(GasCostCopy * uint64(length))
-	p.WriteAt(loadFromMem(p, dataOffset, int(length)), int64(resultOffset))
+	writeToMem(p, w.returnData[dataOffset:dataOffset+length], resultOffset)
 }
 
 func (*eeiApi) selfDestruct(p *exec.Process, w *WasmIntptr, addressOffset int32) {
@@ -386,10 +386,23 @@ func (*eeiApi) getBlockTimestamp(p *exec.Process, w *WasmIntptr) int64 {
 	return w.evm.Time.Int64()
 }
 
-func loadFromMem(p *exec.Process, offset int32, size int) []byte {
+// swapEndian swap big endian to little endian or reverse.
+func swapEndian(src []byte) []byte {
+	rect := make([]byte, len(src))
+	for i, b := range src {
+		rect[len(src)-i-1] = b
+	}
+	return rect
+}
+
+func loadFromMem(p *exec.Process, offset int32, size int32) []byte {
 	b := make([]byte, size)
 	p.ReadAt(b, int64(offset))
-	return b
+	return swapEndian(b)
+}
+
+func writeToMem(p *exec.Process, data []byte, offset int32) (int, error) {
+	return p.WriteAt(swapEndian(data), int64(offset))
 }
 
 func getCallParams(p *exec.Process, w *WasmIntptr, addressOffset, valueOffset, dataOffset, dataLength int32) (addr common.Address, value *big.Int, input []byte) {
@@ -407,7 +420,7 @@ func getCallParams(p *exec.Process, w *WasmIntptr, addressOffset, valueOffset, d
 	}
 
 	// Get the input data from mem
-	input = loadFromMem(p, dataOffset, int(dataLength))
+	input = loadFromMem(p, dataOffset, dataLength)
 
 	return
 }
