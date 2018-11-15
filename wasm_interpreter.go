@@ -21,6 +21,7 @@ const (
 	TerminateInvalid
 )
 
+// funcSet wraps the necessary fields of an importing wasm module
 type funcSet struct {
 	entries []wasm.FunctionSig
 	funcs   []wasm.Function
@@ -37,16 +38,19 @@ type WasmIntptr struct {
 	returnData    []byte        // returning output data for the execution
 
 	// module resolver components
-	handlers      map[string]interface{} // eei function handlers
-	debugHandlers map[string]interface{} // debug function handlers
-	eeiFuncSet    *funcSet               // eei function set
-	debugFuncSet  *funcSet               // debug function set
+	handlers      map[string]reflect.Value // eei function handlers
+	debugHandlers map[string]reflect.Value // debug function handlers
+	eeiFuncSet    *funcSet                 // eei function set
+	debugFuncSet  *funcSet                 // debug function set
+
+	// meter
+	metering bool
 }
 
 func NewWasmIntptr(evm *EVM) *WasmIntptr {
 	w := &WasmIntptr{
 		evm:        evm,
-		handlers:   make(map[string]interface{}),
+		handlers:   make(map[string]reflect.Value),
 		eeiFuncSet: &funcSet{exports: make(map[string]wasm.ExportEntry)},
 	}
 
@@ -65,7 +69,7 @@ func (w *WasmIntptr) initEEIModule() {
 	fnCount := rapi.NumMethod()
 	for i := 0; i < fnCount; i++ {
 		fn := rapi.Method(i)
-		w.handlers[fn.Name] = fn
+		w.handlers[fn.Name] = fn.Func
 	}
 
 	i := 0
@@ -91,7 +95,7 @@ func (w *WasmIntptr) initEEIModule() {
 		w.eeiFuncSet.funcs[i] = wasm.Function{
 			Sig:  &w.eeiFuncSet.entries[i],
 			Body: &wasm.FunctionBody{},
-			Host: reflect.ValueOf(f),
+			Host: f,
 		}
 
 		w.eeiFuncSet.exports[k] = wasm.ExportEntry{
@@ -105,7 +109,7 @@ func (w *WasmIntptr) initEEIModule() {
 }
 
 func (w *WasmIntptr) initDebugModule() {
-	w.debugHandlers = make(map[string]interface{})
+	w.debugHandlers = make(map[string]reflect.Value)
 	w.debugFuncSet = &funcSet{exports: make(map[string]wasm.ExportEntry)}
 
 	dapi := &eeiDebugApi{}
@@ -113,7 +117,7 @@ func (w *WasmIntptr) initDebugModule() {
 	fnCount := rdapi.NumMethod()
 	for i := 0; i < fnCount; i++ {
 		fn := rdapi.Method(i)
-		w.debugHandlers[fn.Name] = fn
+		w.debugHandlers[fn.Name] = fn.Func
 	}
 
 	i := 0
@@ -138,7 +142,7 @@ func (w *WasmIntptr) initDebugModule() {
 		w.debugFuncSet.funcs[i] = wasm.Function{
 			Sig:  &w.debugFuncSet.entries[i],
 			Body: &wasm.FunctionBody{},
-			Host: reflect.ValueOf(v),
+			Host: v,
 		}
 
 		w.debugFuncSet.exports[k] = wasm.ExportEntry{
@@ -152,11 +156,11 @@ func (w *WasmIntptr) initDebugModule() {
 
 }
 
-func (w *WasmIntptr) GetHandlers() map[string]interface{} {
+func (w *WasmIntptr) GetHandlers() map[string]reflect.Value {
 	return w.handlers
 }
 
-func (w *WasmIntptr) GetHandler(name string) interface{} {
+func (w *WasmIntptr) GetHandler(name string) reflect.Value {
 	return w.handlers[name]
 }
 
@@ -214,6 +218,10 @@ func (w *WasmIntptr) Run(contract *Contract, input []byte) ([]byte, error) {
 				if err != nil {
 					w.terminateType = TerminateInvalid
 					w.useGas(w.contract.Gas)
+				}
+
+				if w.StateDB().HasSuicided(contract.Address()) {
+					err = nil
 				}
 				return w.returnData, err
 			}
