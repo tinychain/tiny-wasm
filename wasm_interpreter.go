@@ -217,7 +217,6 @@ func (w *WasmIntptr) Run(contract *Contract, input []byte) ([]byte, error) {
 				_, err := vm.ExecCode(int64(entry.Index))
 				if err != nil {
 					w.terminateType = TerminateInvalid
-					w.useGas(w.contract.Gas)
 				}
 
 				if w.StateDB().HasSuicided(contract.Address()) {

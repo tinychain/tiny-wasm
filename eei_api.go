@@ -426,6 +426,7 @@ func getCallParams(p *exec.Process, w *WasmIntptr, addressOffset, valueOffset, d
 	return
 }
 
+// call provides a common call function for `call`, `callCode` and `callDelegate` of EEI api.
 func call(w *WasmIntptr, toContract *Contract, input []byte, snapshot int) int32 {
 	if w.evm.depth > maxCallDepth {
 		// Clear all gas of contract
