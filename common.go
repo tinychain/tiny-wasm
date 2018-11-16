@@ -1,4 +1,4 @@
-package tiny_wasm
+package tinywasm
 
 // Size (in bytes) of a u256
 const u256Len = 32
@@ -8,6 +8,9 @@ const u128Len = 16
 
 // Max recursion depth for contracts
 const maxCallDepth = 1024
+
+// Max bytecode to permit for a contract
+const MaxCodeSize = 24576
 
 // Address of the sentinel (metering) contract
 const sentinelContractAddress = "0x000000000000000000000000000000000000000a"

@@ -1,4 +1,4 @@
-package tiny_wasm
+package tinywasm
 
 import (
 	"fmt"
@@ -8,12 +8,20 @@ import (
 func moduleResolver(w *WasmIntptr, name string) (*wasm.Module, error) {
 	if name == "ethereum" {
 		m := wasm.NewModule()
-		m.Types.Entries = w.entries
-		m.FunctionIndexSpace = w.funcs
-		m.Export.Entries = w.exports
+		m.Types.Entries = w.eeiFuncSet.entries
+		m.FunctionIndexSpace = w.eeiFuncSet.funcs
+		m.Export.Entries = w.eeiFuncSet.exports
 
 		return m, nil
 	}
+
+	if w.debug() && name == "debug" {
+		m := wasm.NewModule()
+		m.Types.Entries = w.debugFuncSet.entries
+		m.FunctionIndexSpace = w.debugFuncSet.funcs
+		m.Export.Entries = w.debugFuncSet.exports
+	}
+
 	return nil, fmt.Errorf("unknow module name %s", name)
 }
 

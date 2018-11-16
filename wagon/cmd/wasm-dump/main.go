@@ -14,7 +14,7 @@ import (
 	"os"
 	"sort"
 
-	"github.com/tinychain/tiny-wasm/wagon/disasmdisasm"
+	"github.com/tinychain/tiny-wasm/wagon/disasm"
 	"github.com/tinychain/tiny-wasm/wagon/wasm"
 	"github.com/tinychain/tiny-wasm/wagon/wasm/leb128"
 )

@@ -14,9 +14,10 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package tiny_wasm
+package tinywasm
 
 import (
+	"errors"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -28,7 +29,13 @@ import (
 
 // emptyCodeHash is used by create to ensure deployment is disallowed to already
 // deployed contract addresses (relevant after the account abstraction).
-var emptyCodeHash = crypto.Keccak256Hash(nil)
+var (
+	emptyCodeHash            = crypto.Keccak256Hash(nil)
+	errWriteProtection       = errors.New("evm: write protection")
+	errReturnDataOutOfBounds = errors.New("evm: return data out of bounds")
+	errExecutionReverted     = errors.New("evm: execution reverted")
+	errMaxCodeSizeExceeded   = errors.New("evm: max code size exceeded")
+)
 
 type (
 	// CanTransferFunc is the signature of a transfer guard function
@@ -280,7 +287,7 @@ func (evm *EVM) DelegateCall(caller vm.ContractRef, addr common.Address, input [
 		return nil, gas, nil
 	}
 	// Fail if we're trying to execute above the call depth limit
-	if evm.depth > int(CallCreateDepth) {
+	if evm.depth > maxCallDepth {
 		return nil, gas, vm.ErrDepth
 	}
 
@@ -311,8 +318,8 @@ func (evm *EVM) StaticCall(caller vm.ContractRef, addr common.Address, input []b
 	if evm.vmConfig.NoRecursion && evm.depth > 0 {
 		return nil, gas, nil
 	}
-	// Fail if we're trying to execute above the call depth limit
-	if evm.depth > int(CallCreateDepth) {
+	// Fail if we'r  e trying to execute above the call depth limit
+	if evm.depth > maxCallDepth {
 		return nil, gas, vm.ErrDepth
 	}
 	// Make sure the readonly is only set if we aren't in readonly yet
@@ -350,7 +357,7 @@ func (evm *EVM) StaticCall(caller vm.ContractRef, addr common.Address, input []b
 func (evm *EVM) create(caller vm.ContractRef, code []byte, gas uint64, value *big.Int, address common.Address) ([]byte, common.Address, uint64, error) {
 	// Depth check execution. Fail if we're trying to execute above the
 	// limit.
-	if evm.depth > int(CallCreateDepth) {
+	if evm.depth > maxCallDepth {
 		return nil, common.Address{}, gas, vm.ErrDepth
 	}
 	if !evm.CanTransfer(evm.StateDB, caller.Address(), value) {
@@ -394,7 +401,7 @@ func (evm *EVM) create(caller vm.ContractRef, code []byte, gas uint64, value *bi
 	// be stored due to not enough gas set an error and let it be handled
 	// by the error checking condition below.
 	if err == nil && !maxCodeSizeExceeded {
-		createDataGas := uint64(len(ret)) * CreateDataGas
+		createDataGas := uint64(len(ret)) * GasCostCreateData
 		if contract.UseGas(createDataGas) {
 			evm.StateDB.SetCode(address, ret)
 		} else {
