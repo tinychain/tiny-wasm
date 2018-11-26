@@ -55,7 +55,7 @@ func NewWasmIntptr(evm *EVM) *WasmIntptr {
 	}
 
 	w.initEEIModule()
-	if w.evm.vmConfig.Debug {
+	if w.debug() {
 		w.initDebugModule()
 	}
 
@@ -160,8 +160,9 @@ func (w *WasmIntptr) GetHandlers() map[string]reflect.Value {
 	return w.handlers
 }
 
-func (w *WasmIntptr) GetHandler(name string) reflect.Value {
-	return w.handlers[name]
+func (w *WasmIntptr) GetHandler(name string) (reflect.Value, bool) {
+	val, ok := w.handlers[name]
+	return val, ok
 }
 
 func (w *WasmIntptr) debug() bool {
@@ -198,10 +199,6 @@ func (w *WasmIntptr) Run(contract *Contract, input []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	if module.Start != nil {
-		return nil, fmt.Errorf("A contract should not have a start function: found #%d", module.Start.Index)
-	}
-
 	vm, err := exec.NewVM(module)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create vm: %v", err)
@@ -228,6 +225,50 @@ func (w *WasmIntptr) Run(contract *Contract, input []byte) ([]byte, error) {
 		}
 	}
 	return nil, errors.New("could not find a valid 'main' function in the code")
+}
+
+// verifyModule validates the wasm module resolved by the wagon, check `main` and `memory`
+// export and import valid `eei` api. It returns the index of `main` export function and an error.
+func (w *WasmIntptr) verifyModule(m *wasm.Module) (int, error) {
+	if m.Start != nil {
+		return -1, fmt.Errorf("A contract should not have a start function: found #%d", m.Start.Index)
+	}
+
+	if m.Export == nil {
+		return -1, fmt.Errorf("module has no exports `main` and `memory`")
+	}
+
+	if c := len(m.Export.Entries); c != 2 {
+		return -1, fmt.Errorf("module has %d exports instead of 2", c)
+	}
+
+	// Check the existence of the `main` and `memory` exports
+	mainIndex := -1
+	for name, entry := range m.Export.Entries {
+		if name == "main" {
+			if entry.Kind != wasm.ExternalFunction {
+				return -1, fmt.Errorf("`main` is not a function in module")
+			}
+			mainIndex = int(entry.Index)
+		} else if name == "memory" {
+			if entry.Kind != wasm.ExternalMemory {
+				return -1, fmt.Errorf("`memory` is not a memory in module")
+			}
+		}
+	}
+
+	// Validate whether the function imported from `ethereum` module are in the list of eei_api or not
+	if m.Import != nil {
+		for _, entry := range m.Import.Entries {
+			if entry.ModuleName == "ethereum" && entry.Type.Kind() == wasm.ExternalFunction {
+				if _, exist := w.GetHandler(entry.FieldName); !exist {
+					return -1, fmt.Errorf("%s is not found in eei api list", entry.FieldName)
+				}
+			}
+		}
+	}
+
+	return mainIndex, nil
 }
 
 // CanRun checks the binary for a WASM header and accepts the binary blob
