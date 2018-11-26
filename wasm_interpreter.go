@@ -199,6 +199,8 @@ func (w *WasmIntptr) Run(contract *Contract, input []byte) ([]byte, error) {
 		return nil, err
 	}
 
+	mainIndex, err := w.verifyModule(module)
+
 	vm, err := exec.NewVM(module)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create vm: %v", err)
@@ -206,24 +208,19 @@ func (w *WasmIntptr) Run(contract *Contract, input []byte) ([]byte, error) {
 	vm.RecoverPanic = true
 	w.vm = vm
 
-	for name, entry := range module.Export.Entries {
-		if name == "main" && entry.Kind == wasm.ExternalFunction {
-			// Check func signature and output types
-			sig := module.FunctionIndexSpace[entry.Index].Sig
-			if len(sig.ParamTypes) == 0 && len(sig.ReturnTypes) == 0 {
-				_, err := vm.ExecCode(int64(entry.Index))
-				if err != nil {
-					w.terminateType = TerminateInvalid
-				}
-
-				if w.StateDB().HasSuicided(contract.Address()) {
-					err = nil
-				}
-				return w.returnData, err
-			}
-			break
+	sig := module.FunctionIndexSpace[mainIndex].Sig
+	if len(sig.ParamTypes) == 0 && len(sig.ReturnTypes) == 0 {
+		_, err := vm.ExecCode(int64(mainIndex))
+		if err != nil {
+			w.terminateType = TerminateInvalid
 		}
+
+		if w.StateDB().HasSuicided(contract.Address()) {
+			err = nil
+		}
+		return w.returnData, err
 	}
+
 	return nil, errors.New("could not find a valid 'main' function in the code")
 }
 
