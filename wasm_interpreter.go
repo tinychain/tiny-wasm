@@ -200,6 +200,9 @@ func (w *WasmIntptr) Run(contract *Contract, input []byte) ([]byte, error) {
 	}
 
 	mainIndex, err := w.verifyModule(module)
+	if err != nil {
+		return nil, err
+	}
 
 	vm, err := exec.NewVM(module)
 	if err != nil {
@@ -221,6 +224,7 @@ func (w *WasmIntptr) Run(contract *Contract, input []byte) ([]byte, error) {
 		return w.returnData, err
 	}
 
+	w.terminateType = TerminateInvalid
 	return nil, errors.New("could not find a valid 'main' function in the code")
 }
 
